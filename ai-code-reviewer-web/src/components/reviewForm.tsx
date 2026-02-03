@@ -1,4 +1,3 @@
-// src/components/reviewForm.tsx
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import {
@@ -137,6 +136,5 @@ function ReviewForm(props: ReviewFormProps) {
     );
 }
 
-// 👇 aqui é o pulo do gato: export nomeado E default
 export { ReviewForm };
 export default ReviewForm;

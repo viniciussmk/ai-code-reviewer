@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import './App.css';
+import './app.css';
 
 import { ShellHeader } from './components/shellHeader';
 import { ShellFooter } from './components/shellFooter';
