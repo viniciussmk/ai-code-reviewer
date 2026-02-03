@@ -1,48 +1,36 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import CodeReviewService from '../services/codeReviewService';
-import type { ReviewRequest } from '../domain/reviewRequest';
+import { REVIEW_STACKS, REVIEW_FOCUSES } from '../domain/reviewRequest';
 
 const routes = Router();
 const service = new CodeReviewService();
 
-// GET /health
-routes.get('/health', (req, res) => {
-  return res.json({ status: 'ok' });
-});
-
-// Schema do body já tipado como ReviewRequest
-const schema: z.ZodType<ReviewRequest> = z.object({
+const reviewSchema = z.object({
   diffOrCode: z.string().min(10),
-  stack: z.enum(['flutter', 'react', 'generic']),
+  stack: z.enum(REVIEW_STACKS),
   reviewFocuses: z
-    .array(
-      z.enum([
-        'clean_architecture',
-        'solid',
-        'tests',
-        'performance',
-        'readability',
-        'security',
-      ]),
-    )
+    .array(z.enum(REVIEW_FOCUSES))
     .min(1, { message: 'Selecione pelo menos um foco de revisão.' }),
   context: z.string().max(1000).optional(),
 });
 
-routes.post('/review', async (req, res) => {
-  const parsed = schema.safeParse(req.body);
+routes.get('/health', (_req, res) => {
+  return res.json({ status: 'ok' });
+});
 
-  if (!parsed.success) {
+routes.post('/review', async (req, res) => {
+  const parseResult = reviewSchema.safeParse(req.body);
+
+  if (!parseResult.success) {
     return res.status(400).json({
       error: 'Invalid payload',
-      details: parsed.error.flatten(),
+      details: parseResult.error.flatten(),
     });
   }
 
   try {
-    // aqui o parsed.data já é ReviewRequest certinho
-    const result = await service.review(parsed.data);
+    const result = await service.review(parseResult.data);
     return res.json(result);
   } catch (error) {
     console.error(error);
