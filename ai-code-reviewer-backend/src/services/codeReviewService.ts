@@ -1,16 +1,15 @@
 import { openai } from '../infra/openaiClient';
-import { ReviewRequest } from '../domain/reviewRequest';
-import { ReviewResult } from '../domain/reviewResult';
+import type { ReviewRequest, ReviewFocus } from '../domain/reviewRequest';
+import type { ReviewResult } from '../domain/reviewResult';
 
-function buildSystemPrompt(stack: ReviewRequest['stack']): string {
-  const base = `
+const BASE_SYSTEM_PROMPT = `
 Você é um desenvolvedor sênior especializado em Clean Architecture e SOLID.
 Você está fazendo code review em um pull request.
 Sua resposta deve ser sempre objetiva, prática e aplicável.
 `;
 
-  const stackHints: Record<ReviewRequest['stack'], string> = {
-    flutter: `
+const STACK_HINTS: Record<ReviewRequest['stack'], string> = {
+  flutter: `
 Stack principal: Flutter/Dart.
 Considere boas práticas de:
 - separação de camadas (data, domain, presentation)
@@ -18,7 +17,7 @@ Considere boas práticas de:
 - imutabilidade
 - nomes claros de widgets e controllers.
 `,
-    react: `
+  react: `
 Stack principal: React/TypeScript.
 Considere boas práticas de:
 - componentização
@@ -26,17 +25,12 @@ Considere boas práticas de:
 - separação de responsabilidades
 - legibilidade e coesão.
 `,
-    generic: `
+  generic: `
 Stack genérica. Considere boas práticas gerais de engenharia de software.
 `,
-  };
+};
 
-  return base + stackHints[stack];
-}
-
-type ReviewFocus = ReviewRequest['reviewFocuses'][number];
-
-const focusDescriptions: Record<ReviewFocus, string> = {
+const FOCUS_DESCRIPTIONS: Record<ReviewFocus, string> = {
   clean_architecture:
     'Clean Architecture (camadas, fronteiras bem definidas, dependências apontando para o domínio).',
   solid:
@@ -51,21 +45,22 @@ const focusDescriptions: Record<ReviewFocus, string> = {
     'Segurança e tratamento de dados sensíveis (validações, sanitização, erros, exposição de detalhes internos).',
 };
 
-export default class CodeReviewService {
-  async review(request: ReviewRequest): Promise<ReviewResult> {
-    const systemPrompt = buildSystemPrompt(request.stack);
+function buildSystemPrompt(stack: ReviewRequest['stack']): string {
+  return BASE_SYSTEM_PROMPT + STACK_HINTS[stack];
+}
 
-    const focusText =
-      request.reviewFocuses && request.reviewFocuses.length > 0
-        ? request.reviewFocuses.map((f) => `- ${focusDescriptions[f]}`).join('\n')
-        : '- Sem focos específicos informados. Faça uma revisão geral.';
+function buildUserPrompt(request: ReviewRequest): string {
+  const focusText =
+    request.reviewFocuses && request.reviewFocuses.length > 0
+      ? request.reviewFocuses.map((focus) => `- ${FOCUS_DESCRIPTIONS[focus]}`).join('\n')
+      : '- Sem focos específicos informados. Faça uma revisão geral.';
 
-    const contextText =
-      request.context && request.context.trim().length > 0
-        ? request.context.trim()
-        : 'Não informado.';
+  const contextText =
+    request.context && request.context.trim().length > 0
+      ? request.context.trim()
+      : 'Não informado.';
 
-    const userPrompt = `
+  return `
 Faça uma revisão de código do trecho abaixo (pode ser diff de PR ou código completo).
 
 Stack principal: ${request.stack}
@@ -93,6 +88,12 @@ Responda SEMPRE em JSON, no seguinte formato EXATO:
   "refactorExample": "exemplo de refatoração em código (opcional, mas recomendado)"
 }
 `;
+}
+
+export default class CodeReviewService {
+  async review(request: ReviewRequest): Promise<ReviewResult> {
+    const systemPrompt = buildSystemPrompt(request.stack);
+    const userPrompt = buildUserPrompt(request);
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
